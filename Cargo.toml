@@ -7,13 +7,11 @@ license = "MIT"
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
-clap = { version = "4", features = ["derive"] }
 ratatui = "0.28"
 crossterm = { version = "0.28", features = ["event-stream"] }
+clap = { version = "4", features = ["derive"] }
 sysinfo = "0.31"
 anyhow = "1"
-dns-lookup = "2"
-dirs = "5"
 
 [profile.release]
 opt-level = 3

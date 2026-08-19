@@ -1,59 +1,85 @@
-use anyhow::Result;
+use std::collections::{HashMap, VecDeque};
+use std::time::Duration;
+
 use sysinfo::Networks;
-use std::time::Instant;
+use tokio::sync::watch;
 
-pub struct BandwidthCollector {
-    networks: Networks,
-    last_tx: u64,
-    last_rx: u64,
-    last_time: Instant,
-}
+use crate::app::{InterfaceMetrics, NetworkSnapshot};
+use crate::cli::Cli;
 
-pub struct BandwidthSample {
-    pub total_tx: u64,
-    pub total_rx: u64,
-    pub bps_tx: f64,
-    pub bps_rx: f64,
-}
+pub async fn run_bandwidth_collector(tx: watch::Sender<NetworkSnapshot>, cli: Cli) {
+    let mut networks = Networks::new_with_refreshed_list();
+    let mut prev_totals: HashMap<String, (u64, u64)> = HashMap::new();
+    let mut histories: HashMap<String, (VecDeque<u64>, VecDeque<u64>)> = HashMap::new();
+    let mut first_tick = true;
 
-impl BandwidthCollector {
-    pub fn new() -> Self {
-        let networks = Networks::new_with_refreshed_list();
-        Self {
-            networks,
-            last_tx: 0,
-            last_rx: 0,
-            last_time: Instant::now(),
+    loop {
+        tokio::time::sleep(Duration::from_millis(cli.interval)).await;
+        networks.refresh();
+
+        let mut interfaces = Vec::new();
+
+        for (name, data) in networks.iter() {
+            let rx = data.total_received();
+            let tx = data.total_transmitted();
+
+            let (delta_rx, delta_tx) = if first_tick {
+                (0u64, 0u64)
+            } else {
+                match prev_totals.get(name) {
+                    Some((prev_rx, prev_tx)) => (
+                        rx.saturating_sub(*prev_rx),
+                        tx.saturating_sub(*prev_tx),
+                    ),
+                    None => (0, 0),
+                }
+            };
+
+            if !cli.all && delta_rx == 0 && delta_tx == 0 {
+                prev_totals.insert(name.clone(), (rx, tx));
+                continue;
+            }
+
+            let rx_bps = delta_rx as f64;
+            let tx_bps = delta_tx as f64;
+
+            prev_totals.insert(name.clone(), (rx, tx));
+
+            let hist = histories
+                .entry(name.clone())
+                .or_insert_with(|| (VecDeque::with_capacity(30), VecDeque::with_capacity(30)));
+
+            if !first_tick {
+                if hist.0.len() >= 30 {
+                    hist.0.pop_front();
+                }
+                if hist.1.len() >= 30 {
+                    hist.1.pop_front();
+                }
+                hist.0.push_back(rx_bps as u64);
+                hist.1.push_back(tx_bps as u64);
+            }
+
+            interfaces.push(InterfaceMetrics {
+                name: name.clone(),
+                rx_bps,
+                tx_bps,
+                total_rx: rx,
+                total_tx: tx,
+                rx_history: hist.0.clone(),
+                tx_history: hist.1.clone(),
+            });
         }
-    }
 
-    pub fn sample(&mut self, interface: &str) -> Result<BandwidthSample> {
-        self.networks.refresh();
-        let stats = self.networks.get(interface);
+        first_tick = false;
 
-        let (tx, rx) = match stats {
-            Some(s) => (s.total_transmitted(), s.total_received()),
-            None => (0, 0),
+        let snapshot = NetworkSnapshot {
+            timestamp: std::time::Instant::now(),
+            interfaces,
         };
 
-        let elapsed = self.last_time.elapsed().as_secs_f64();
-        let (bps_tx, bps_rx) = if elapsed > 0.0 {
-            let dtx = tx.saturating_sub(self.last_tx) as f64;
-            let drx = rx.saturating_sub(self.last_rx) as f64;
-            (dtx * 8.0 / elapsed, drx * 8.0 / elapsed)
-        } else {
-            (0.0, 0.0)
-        };
-
-        self.last_tx = tx;
-        self.last_rx = rx;
-        self.last_time = Instant::now();
-
-        Ok(BandwidthSample {
-            total_tx: tx,
-            total_rx: rx,
-            bps_tx,
-            bps_rx,
-        })
+        if tx.send(snapshot).is_err() {
+            break;
+        }
     }
 }

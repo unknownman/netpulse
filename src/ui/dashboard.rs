@@ -1,188 +1,213 @@
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Style};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, Borders, Row, Sparkline, Table};
 use ratatui::Frame;
 
-use crate::app::AppState;
-use crate::ui::widgets::{dns_status_badge, sparkline, status_badge};
+use crate::app::NetworkSnapshot;
 
-pub fn draw(f: &mut Frame, state: &AppState) {
+pub fn render(f: &mut Frame, snapshot: &NetworkSnapshot, no_color: bool) {
+    let area = f.area();
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3), // header
-            Constraint::Length(5), // bandwidth
-            Constraint::Length(5), // latency
-            Constraint::Length(4), // dns
-            Constraint::Min(4),   // ports
+            Constraint::Length(3),
+            Constraint::Min(3),
+            Constraint::Length(1),
+            Constraint::Length(2),
         ])
-        .split(f.area());
-
-    draw_header(f, state, chunks[0]);
-    draw_bandwidth(f, state, chunks[1]);
-    draw_latency(f, state, chunks[2]);
-    draw_dns(f, state, chunks[3]);
-    draw_ports(f, state, chunks[4]);
-}
-
-fn draw_header(f: &mut Frame, state: &AppState, area: Rect) {
-    let snap = &state.current;
-    let gw = snap.gateway.as_deref().unwrap_or("N/A");
-
-    let header = Line::from(vec![
-        Span::styled(" netpulse ", Style::default().fg(Color::Cyan).add_modifier(ratatui::style::Modifier::BOLD)),
-        Span::raw("  "),
-        Span::styled(format!("iface:{}", snap.interface_name), Style::default().fg(Color::Gray)),
-        Span::raw("  "),
-        Span::styled(format!("gw:{}", gw), Style::default().fg(Color::Gray)),
-    ]);
-
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::DarkGray));
-
-    f.render_widget(Paragraph::new(header).block(block), area);
-}
-
-fn draw_bandwidth(f: &mut Frame, state: &AppState, area: Rect) {
-    let snap = &state.current;
-    let label = format!(
-        "  TX: {}/s   RX: {}/s",
-        fmt_bits(snap.bandwidth_tx_bps),
-        fmt_bits(snap.bandwidth_rx_bps),
-    );
-
-    let inner = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Length(40), Constraint::Min(10)])
         .split(area);
 
-    let block = Block::default()
-        .title(" Bandwidth ")
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::DarkGray));
-
-    f.render_widget(Paragraph::new(label).block(block), inner[0]);
-
-    // Sparklines for TX and RX
-    let tx_vals: Vec<u64> = state
-        .history_bw_tx
-        .iter()
-        .map(|v| *v as u64)
-        .collect();
-    let rx_vals: Vec<u64> = state
-        .history_bw_rx
-        .iter()
-        .map(|v| *v as u64)
-        .collect();
-
-    sparkline(f, &tx_vals, Color::Green, "TX", inner[1]);
-    sparkline(f, &rx_vals, Color::Blue, "RX", inner[1]);
+    draw_header(f, snapshot, chunks[0], no_color);
+    draw_table(f, snapshot, chunks[1], no_color);
+    draw_footer(f, chunks[3], no_color);
 }
 
-fn draw_latency(f: &mut Frame, state: &AppState, area: Rect) {
-    let snap = &state.current;
-    let latency_str = snap
-        .latency_ms
-        .map(|v| format!("{:.1}ms", v))
-        .unwrap_or_else(|| "---".into());
+fn draw_header(f: &mut Frame, snapshot: &NetworkSnapshot, area: Rect, no_color: bool) {
+    let title_style = if no_color {
+        Style::default().add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD)
+    };
 
-    let status = status_badge(&snap.latency_status);
+    let count = snapshot.interfaces.len();
     let line = Line::from(vec![
-        Span::styled(format!("  ICMP/TCP: {}  ", latency_str), Style::default().fg(Color::White)),
-        status,
+        Span::styled(" netpulse ", title_style),
+        Span::styled(
+            format!("monitoring {} interface{}", count, if count == 1 { "" } else { "s" }),
+            styled(Color::Gray, no_color),
+        ),
     ]);
 
-    let inner = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Length(30), Constraint::Min(10)])
-        .split(area);
-
     let block = Block::default()
-        .title(" Latency ")
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::DarkGray));
+        .border_style(styled(Color::DarkGray, no_color));
 
-    f.render_widget(Paragraph::new(line).block(block), inner[0]);
-
-    let vals: Vec<u64> = state
-        .history_latency
-        .iter()
-        .map(|v| v.map(|ms| ms as u64).unwrap_or(0))
-        .collect();
-    sparkline(f, &vals, Color::Yellow, "ms", inner[1]);
+    f.render_widget(ratatui::widgets::Paragraph::new(line).block(block), area);
 }
 
-fn draw_dns(f: &mut Frame, state: &AppState, area: Rect) {
-    let snap = &state.current;
-    let dns_str = snap
-        .dns_resolution_ms
-        .map(|v| format!("{:.1}ms", v))
-        .unwrap_or_else(|| "---".into());
-
-    let status = dns_status_badge(&snap.dns_status);
-    let line = Line::from(vec![
-        Span::styled(format!("  Resolver: {}  ", dns_str), Style::default().fg(Color::White)),
-        status,
-    ]);
-
-    let inner = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Length(30), Constraint::Min(10)])
-        .split(area);
-
-    let block = Block::default()
-        .title(" DNS ")
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::DarkGray));
-
-    f.render_widget(Paragraph::new(line).block(block), inner[0]);
-
-    let vals: Vec<u64> = state
-        .history_dns
-        .iter()
-        .map(|v| v.map(|ms| ms as u64).unwrap_or(0))
-        .collect();
-    sparkline(f, &vals, Color::Magenta, "ms", inner[1]);
-}
-
-fn draw_ports(f: &mut Frame, state: &AppState, area: Rect) {
-    let snap = &state.current;
-    let mut lines = vec![];
-
-    for p in &snap.ports {
-        let icon = if p.open { "●" } else { "○" };
-        let color = if p.open { Color::Green } else { Color::Red };
-        let lat = p
-            .latency_ms
-            .map(|v| format!("{:.1}ms", v))
-            .unwrap_or_else(|| "-".into());
-
-        lines.push(Line::from(vec![
-            Span::styled(format!("  {} ", icon), Style::default().fg(color)),
-            Span::styled(format!("{:<5}", p.label), Style::default().fg(Color::White)),
-            Span::styled(format!(":{:<5}", p.port), Style::default().fg(Color::DarkGray)),
-            Span::styled(lat, Style::default().fg(Color::Gray)),
-        ]));
+fn draw_table(f: &mut Frame, snapshot: &NetworkSnapshot, area: Rect, no_color: bool) {
+    if snapshot.interfaces.is_empty() {
+        let block = Block::default()
+            .title(" Interfaces ")
+            .borders(Borders::ALL)
+            .border_style(styled(Color::DarkGray, no_color));
+        f.render_widget(
+            ratatui::widgets::Paragraph::new("No active interfaces detected."),
+            block.inner(area),
+        );
+        f.render_widget(block, area);
+        return;
     }
 
-    let block = Block::default()
-        .title(" Ports ")
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::DarkGray));
+    let header_cells = ["Interface", "RX/s", "TX/s", "Total RX", "Total TX"]
+        .iter()
+        .map(|h| {
+            Span::styled(
+                *h,
+                styled(Color::Cyan, no_color).add_modifier(Modifier::BOLD),
+            )
+        });
+    let header = Row::new(header_cells).height(1);
 
-    f.render_widget(Paragraph::new(lines).block(block), area);
+    let mut rows = Vec::new();
+    for iface in &snapshot.interfaces {
+        let row = Row::new(vec![
+            Span::styled(iface.name.clone(), styled(Color::White, no_color)),
+            Span::styled(fmt_bytes(iface.rx_bps), styled(Color::Green, no_color)),
+            Span::styled(fmt_bytes(iface.tx_bps), styled(Color::Blue, no_color)),
+            Span::styled(fmt_bytes_total(iface.total_rx), styled(Color::DarkGray, no_color)),
+            Span::styled(fmt_bytes_total(iface.total_tx), styled(Color::DarkGray, no_color)),
+        ]);
+        rows.push(row);
+    }
+
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Length(14),
+            Constraint::Length(12),
+            Constraint::Length(12),
+            Constraint::Length(14),
+            Constraint::Length(14),
+        ],
+    )
+    .header(header)
+    .block(
+        Block::default()
+            .title(" Interfaces ")
+            .borders(Borders::ALL)
+            .border_style(styled(Color::DarkGray, no_color)),
+    );
+
+    f.render_widget(table, area);
+
+    let spark_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(
+            snapshot
+                .interfaces
+                .iter()
+                .map(|_| Constraint::Length(2))
+                .collect::<Vec<_>>(),
+        )
+        .split(area);
+
+    for (i, iface) in snapshot.interfaces.iter().enumerate() {
+        if i >= spark_chunks.len() {
+            break;
+        }
+        let inner = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .split(spark_chunks[i]);
+
+        draw_sparkline(
+            f,
+            &iface.rx_history.iter().copied().collect::<Vec<_>>(),
+            "RX",
+            Color::Green,
+            no_color,
+            inner[0],
+        );
+        draw_sparkline(
+            f,
+            &iface.tx_history.iter().copied().collect::<Vec<_>>(),
+            "TX",
+            Color::Blue,
+            no_color,
+            inner[1],
+        );
+    }
 }
 
-fn fmt_bits(bps: f64) -> String {
-    if bps < 1000.0 {
-        format!("{:.0} b", bps)
-    } else if bps < 1_000_000.0 {
-        format!("{:.1} kbit", bps / 1000.0)
-    } else if bps < 1_000_000_000.0 {
-        format!("{:.1} Mbit", bps / 1_000_000.0)
+fn draw_sparkline(
+    f: &mut Frame,
+    data: &[u64],
+    label: &str,
+    color: Color,
+    no_color: bool,
+    area: Rect,
+) {
+    let max = data.iter().copied().max().unwrap_or(1).max(1);
+    let spark = Sparkline::default()
+        .block(
+            Block::default()
+                .title(format!(" {} ", label))
+                .borders(Borders::ALL)
+                .border_style(styled(Color::DarkGray, no_color)),
+        )
+        .data(data)
+        .max(max)
+        .style(Style::default().fg(color));
+    f.render_widget(spark, area);
+}
+
+fn draw_footer(f: &mut Frame, area: Rect, no_color: bool) {
+    let footer = Line::from(vec![
+        Span::styled(" q", styled(Color::Cyan, no_color).add_modifier(Modifier::BOLD)),
+        Span::styled(" quit  ", styled(Color::Gray, no_color)),
+        Span::styled("ctrl+c", styled(Color::Cyan, no_color).add_modifier(Modifier::BOLD)),
+        Span::styled(" exit", styled(Color::Gray, no_color)),
+    ]);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(styled(Color::DarkGray, no_color));
+
+    f.render_widget(ratatui::widgets::Paragraph::new(footer).block(block), area);
+}
+
+fn styled(color: Color, no_color: bool) -> Style {
+    if no_color {
+        Style::default()
     } else {
-        format!("{:.1} Gbit", bps / 1_000_000_000.0)
+        Style::default().fg(color)
+    }
+}
+
+fn fmt_bytes(bytes_per_sec: f64) -> String {
+    if bytes_per_sec < 1024.0 {
+        format!("{:.0} B/s", bytes_per_sec)
+    } else if bytes_per_sec < 1024.0 * 1024.0 {
+        format!("{:.1} KB/s", bytes_per_sec / 1024.0)
+    } else if bytes_per_sec < 1024.0 * 1024.0 * 1024.0 {
+        format!("{:.1} MB/s", bytes_per_sec / (1024.0 * 1024.0))
+    } else {
+        format!("{:.2} GB/s", bytes_per_sec / (1024.0 * 1024.0 * 1024.0))
+    }
+}
+
+fn fmt_bytes_total(bytes: u64) -> String {
+    if bytes < 1024 {
+        format!("{} B", bytes)
+    } else if bytes < 1024 * 1024 {
+        format!("{:.1} KB", bytes as f64 / 1024.0)
+    } else if bytes < 1024 * 1024 * 1024 {
+        format!("{:.1} MB", bytes as f64 / (1024.0 * 1024.0))
+    } else {
+        format!("{:.2} GB", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
     }
 }
