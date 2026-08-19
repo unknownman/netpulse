@@ -1,0 +1,21 @@
+[package]
+name = "netpulse"
+version = "0.1.0"
+edition = "2021"
+description = "Ultra-lightweight, zero-flicker, terminal-based local network pulse tool"
+license = "MIT"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+clap = { version = "4", features = ["derive"] }
+ratatui = "0.28"
+crossterm = { version = "0.28", features = ["event-stream"] }
+sysinfo = "0.31"
+anyhow = "1"
+dns-lookup = "2"
+dirs = "5"
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
