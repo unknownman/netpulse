@@ -4,16 +4,23 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Row, Sparkline, Table};
 use ratatui::Frame;
 
-use crate::app::{LatencyMetrics, LatencyStats, NetworkSnapshot, ProbeProtocol};
+use crate::app::{LatencyMetrics, LatencyStats, NetworkSnapshot, PortsMetrics, ProbeProtocol};
 
-pub fn render(f: &mut Frame, snapshot: &NetworkSnapshot, latency: &LatencyMetrics, no_color: bool) {
+pub fn render(
+    f: &mut Frame,
+    snapshot: &NetworkSnapshot,
+    latency: &LatencyMetrics,
+    ports: &PortsMetrics,
+    no_color: bool,
+) {
     let area = f.area();
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(3),  // header
-            Constraint::Min(3),    // interfaces table
+            Constraint::Length(3), // interfaces table (header + 1 row)
             Constraint::Length(6), // latency block
+            Constraint::Length(7), // open ports block
             Constraint::Min(1),   // sparklines
             Constraint::Length(2), // footer
         ])
@@ -22,7 +29,8 @@ pub fn render(f: &mut Frame, snapshot: &NetworkSnapshot, latency: &LatencyMetric
     draw_header(f, snapshot, chunks[0], no_color);
     draw_table(f, snapshot, chunks[1], no_color);
     draw_latency(f, latency, chunks[2], no_color);
-    draw_footer(f, chunks[4], no_color);
+    draw_ports(f, ports, chunks[3], no_color);
+    draw_footer(f, chunks[5], no_color);
 }
 
 fn draw_header(f: &mut Frame, snapshot: &NetworkSnapshot, area: Rect, no_color: bool) {
@@ -331,6 +339,70 @@ fn draw_footer(f: &mut Frame, area: Rect, no_color: bool) {
         .border_style(styled(Color::DarkGray, no_color));
 
     f.render_widget(ratatui::widgets::Paragraph::new(footer).block(block), area);
+}
+
+fn draw_ports(f: &mut Frame, ports: &PortsMetrics, area: Rect, no_color: bool) {
+    let block = Block::default()
+        .title(format!(" Open Ports ({}) ", ports.listening.len()))
+        .borders(Borders::ALL)
+        .border_style(styled(Color::DarkGray, no_color));
+
+    if ports.listening.is_empty() {
+        f.render_widget(
+            ratatui::widgets::Paragraph::new("Scanning..."),
+            block.inner(area),
+        );
+        f.render_widget(block, area);
+        return;
+    }
+
+    let header_cells = ["Proto", "Port", "PID", "Process"]
+        .iter()
+        .map(|h| {
+            Span::styled(
+                *h,
+                styled(Color::Cyan, no_color).add_modifier(Modifier::BOLD),
+            )
+        });
+    let header = Row::new(header_cells).height(1);
+
+    let max_rows = area.height.saturating_sub(2) as usize;
+    let rows: Vec<Row<'_>> = ports
+        .listening
+        .iter()
+        .take(max_rows)
+        .map(|p| {
+            let port_color = if p.established {
+                Color::Green
+            } else {
+                Color::Yellow
+            };
+            let pid_str = match p.pid {
+                Some(id) => id.to_string(),
+                None => "-".into(),
+            };
+            Row::new(vec![
+                Span::styled(p.protocol.clone(), styled(Color::White, no_color)),
+                Span::styled(p.port.to_string(), styled(port_color, no_color)),
+                Span::styled(pid_str, styled(Color::DarkGray, no_color)),
+                Span::styled(p.process_name.clone(), styled(Color::Gray, no_color)),
+            ])
+        })
+        .collect();
+
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Length(6),
+            Constraint::Length(7),
+            Constraint::Length(7),
+            Constraint::Min(8),
+        ],
+    )
+    .header(header)
+    .block(block);
+
+    f.render_widget(table, area);
 }
 
 fn styled(color: Color, no_color: bool) -> Style {

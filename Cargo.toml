@@ -13,6 +13,7 @@ clap = { version = "4", features = ["derive"] }
 sysinfo = "0.31"
 surge-ping = "0.8"
 socket2 = "0.5"
+netstat2 = "0.11"
 anyhow = "1"
 
 [profile.release]

@@ -47,3 +47,19 @@ pub struct LatencyMetrics {
     pub probes: Vec<ProbeResult>,
     pub stats: LatencyStats,
 }
+
+#[derive(Debug, Clone)]
+pub struct ListeningPort {
+    pub protocol: String,
+    pub port: u16,
+    pub pid: Option<u32>,
+    pub process_name: String,
+    pub established: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct PortsMetrics {
+    pub listening: Vec<ListeningPort>,
+    #[allow(dead_code)]
+    pub collected_at: std::time::Instant,
+}
