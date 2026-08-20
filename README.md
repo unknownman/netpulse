@@ -41,12 +41,6 @@ Most terminal network tools force you into an unappealing trade-off: heavy backg
   <img src="assets/demo.gif" alt="NetPulse Demo" width="850">
 </div>
 
-> **Re-generate the GIF locally:**
-> 1. Install [VHS](https://github.com/charmbracelet/vhs) — `brew install vhs`
-> 2. Install the Nerd Font — `brew install --cask font-jetbrains-mono-nerd-font`
-> 3. Pre-build the release binary — `cargo build --release`
-> 4. Record — `vhs assets/demo.tape`
-
 ---
 
 ## ✨ Key Features
