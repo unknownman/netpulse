@@ -63,3 +63,22 @@ pub struct PortsMetrics {
     #[allow(dead_code)]
     pub collected_at: std::time::Instant,
 }
+
+#[derive(Debug, Clone)]
+pub struct DnsProbeResult {
+    pub domain: String,
+    pub latency_ms: f64,
+    pub success: bool,
+    pub resolved_ip: Option<String>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct DnsMetrics {
+    pub server: Option<String>,
+    pub probes: Vec<DnsProbeResult>,
+    pub avg_latency_ms: f64,
+    #[allow(dead_code)]
+    pub collected_at: std::time::Instant,
+}
+
