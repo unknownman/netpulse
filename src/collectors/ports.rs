@@ -2,10 +2,11 @@ use std::time::Duration;
 
 use netstat2::{get_sockets_info, AddressFamilyFlags, ProtocolFlags, ProtocolSocketInfo, TcpState};
 use sysinfo::System;
+use tokio::sync::watch;
 
 use crate::app::{ListeningPort, PortsMetrics};
 
-fn collect_listening_ports() -> Vec<ListeningPort> {
+fn collect_listening_ports(sys: &mut System) -> Vec<ListeningPort> {
     let af_flags = AddressFamilyFlags::IPV4 | AddressFamilyFlags::IPV6;
     let proto_flags = ProtocolFlags::TCP | ProtocolFlags::UDP;
 
@@ -14,7 +15,6 @@ fn collect_listening_ports() -> Vec<ListeningPort> {
         Err(_) => return Vec::new(),
     };
 
-    let mut sys = System::new();
     sys.refresh_processes(sysinfo::ProcessesToUpdate::All);
 
     let mut ports = Vec::new();
@@ -59,23 +59,25 @@ fn collect_listening_ports() -> Vec<ListeningPort> {
     ports
 }
 
-pub async fn run_ports_collector(
-    state: std::sync::Arc<std::sync::OnceLock<tokio::sync::watch::Sender<PortsMetrics>>>,
-) {
+pub async fn run_ports_collector(tx: watch::Sender<PortsMetrics>) {
+    let mut sys = System::new();
     loop {
-        let ports = tokio::task::spawn_blocking(collect_listening_ports)
-            .await
-            .unwrap_or_default();
+        let (ports, returned_sys) = tokio::task::spawn_blocking(move || {
+            let ports = collect_listening_ports(&mut sys);
+            (ports, sys)
+        })
+        .await
+        .unwrap_or_else(|_| (Vec::new(), System::new()));
+
+        sys = returned_sys;
 
         let metrics = PortsMetrics {
             listening: ports,
             collected_at: std::time::Instant::now(),
         };
 
-        if let Some(tx) = state.get() {
-            if tx.send(metrics).is_err() {
-                break;
-            }
+        if tx.send(metrics).is_err() {
+            break;
         }
 
         tokio::time::sleep(Duration::from_secs(3)).await;

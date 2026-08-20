@@ -50,15 +50,37 @@ mod tests {
     }
 
     #[test]
-    fn test_cli_custom_interval() {
-        let cli = Cli::try_parse_from(["netpulse", "-i", "250", "--all"]).unwrap();
+    fn test_cli_custom_interval_and_interface() {
+        let cli = Cli::try_parse_from(["netpulse", "-i", "250", "--interface", "en0", "--all"]).unwrap();
         assert_eq!(cli.interval, 250);
+        assert_eq!(cli.interface, Some("en0".into()));
         assert!(cli.all);
+    }
+
+    #[test]
+    fn test_cli_interval_long_flag() {
+        let cli = Cli::try_parse_from(["netpulse", "--interval", "5000"]).unwrap();
+        assert_eq!(cli.interval, 5000);
+    }
+
+    #[test]
+    fn test_cli_no_color_flag() {
+        let cli = Cli::try_parse_from(["netpulse", "--no-color"]).unwrap();
+        assert!(cli.no_color);
     }
 
     #[test]
     fn test_cli_generate_completions() {
         let cli = Cli::try_parse_from(["netpulse", "--generate-completions", "zsh"]).unwrap();
         assert_eq!(cli.generate_completions, Some(clap_complete::Shell::Zsh));
+
+        let cli_bash = Cli::try_parse_from(["netpulse", "--generate-completions", "bash"]).unwrap();
+        assert_eq!(cli_bash.generate_completions, Some(clap_complete::Shell::Bash));
+    }
+
+    #[test]
+    fn test_cli_invalid_arg() {
+        let err = Cli::try_parse_from(["netpulse", "--unknown-flag"]);
+        assert!(err.is_err());
     }
 }

@@ -1,4 +1,3 @@
-use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
 use hickory_resolver::config::{ResolverConfig, ResolverOpts};
@@ -16,9 +15,7 @@ const BENCHMARK_DOMAINS: &[&str] = &[
     "amazon.com",
 ];
 
-pub async fn run_dns_collector(
-    state: Arc<OnceLock<watch::Sender<DnsMetrics>>>,
-) {
+pub async fn run_dns_collector(tx: watch::Sender<DnsMetrics>) {
     let (resolver, server_str) = match read_system_conf() {
         Ok((config, opts)) => {
             let ns_str = config
@@ -87,10 +84,8 @@ pub async fn run_dns_collector(
             collected_at: Instant::now(),
         };
 
-        if let Some(tx) = state.get() {
-            if tx.send(metrics).is_err() {
-                break;
-            }
+        if tx.send(metrics).is_err() {
+            break;
         }
 
         tokio::time::sleep(Duration::from_secs(2)).await;

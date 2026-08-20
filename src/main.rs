@@ -5,7 +5,6 @@ mod ui;
 mod utils;
 
 use std::io;
-use std::sync::{Arc, OnceLock};
 
 use clap::{CommandFactory, Parser};
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
@@ -23,10 +22,6 @@ use collectors::bandwidth::run_bandwidth_collector;
 use collectors::dns::run_dns_collector;
 use collectors::latency::run_latency_collector;
 use collectors::ports::run_ports_collector;
-
-static LATENCY_TX: OnceLock<watch::Sender<LatencyMetrics>> = OnceLock::new();
-static PORTS_TX: OnceLock<watch::Sender<PortsMetrics>> = OnceLock::new();
-static DNS_TX: OnceLock<watch::Sender<DnsMetrics>> = OnceLock::new();
 
 #[tokio::main]
 async fn main() {
@@ -82,23 +77,10 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
     let (dns_tx, mut dns_rx) = watch::channel(initial_dns);
     let (ports_tx, mut ports_rx) = watch::channel(initial_ports);
 
-    LATENCY_TX.set(lat_tx).ok();
-    DNS_TX.set(dns_tx).ok();
-    PORTS_TX.set(ports_tx).ok();
-
-    let lat_state = Arc::new(OnceLock::<watch::Sender<LatencyMetrics>>::new());
-    lat_state.set(LATENCY_TX.get().unwrap().clone()).ok();
-
-    let dns_state = Arc::new(OnceLock::<watch::Sender<DnsMetrics>>::new());
-    dns_state.set(DNS_TX.get().unwrap().clone()).ok();
-
-    let ports_state = Arc::new(OnceLock::<watch::Sender<PortsMetrics>>::new());
-    ports_state.set(PORTS_TX.get().unwrap().clone()).ok();
-
     tokio::spawn(run_bandwidth_collector(snap_tx, cli.clone()));
-    tokio::spawn(run_latency_collector(lat_state, gw_str));
-    tokio::spawn(run_dns_collector(dns_state));
-    tokio::spawn(run_ports_collector(ports_state));
+    tokio::spawn(run_latency_collector(lat_tx, gw_str));
+    tokio::spawn(run_dns_collector(dns_tx));
+    tokio::spawn(run_ports_collector(ports_tx));
 
     // Install panic hook to ensure terminal restoration even on crash
     let original_panic = std::panic::take_hook();
@@ -145,10 +127,10 @@ async fn run_app(
 ) -> anyhow::Result<()> {
     loop {
         {
-            let snap = snap_rx.borrow().clone();
-            let latency = lat_rx.borrow_and_update().clone();
-            let dns = dns_rx.borrow_and_update().clone();
-            let ports = ports_rx.borrow_and_update().clone();
+            let snap = snap_rx.borrow();
+            let latency = lat_rx.borrow_and_update();
+            let dns = dns_rx.borrow_and_update();
+            let ports = ports_rx.borrow_and_update();
             terminal.draw(|f| {
                 ui::dashboard::render(f, &snap, &latency, &dns, &ports, cli.no_color)
             })?;

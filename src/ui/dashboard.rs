@@ -4,7 +4,9 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Row, Sparkline, Table};
 use ratatui::Frame;
 
-use crate::app::{DnsMetrics, LatencyMetrics, LatencyStats, NetworkSnapshot, PortsMetrics, ProbeProtocol};
+use crate::app::{
+    DnsMetrics, LatencyMetrics, LatencyStats, NetworkSnapshot, PortsMetrics, ProbeProtocol,
+};
 
 pub fn render(
     f: &mut Frame,
@@ -43,11 +45,11 @@ pub fn render(
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),      // Header
-            Constraint::Length(7),      // Interfaces & Sparklines
-            Constraint::Length(7),      // Latency & DNS
-            Constraint::Min(5),         // Open Ports
-            Constraint::Length(2),      // Footer
+            Constraint::Length(3), // Header
+            Constraint::Length(7), // Interfaces & Sparklines
+            Constraint::Length(7), // Latency & DNS
+            Constraint::Min(5),    // Open Ports
+            Constraint::Length(2), // Footer
         ])
         .split(area);
 
@@ -111,7 +113,6 @@ fn draw_header(
 }
 
 fn draw_bandwidth_section(f: &mut Frame, snapshot: &NetworkSnapshot, area: Rect, no_color: bool) {
-    // If screen is wide enough, place Interfaces Table on left and Sparklines on right
     if area.width >= 100 {
         let cols = Layout::default()
             .direction(Direction::Horizontal)
@@ -121,7 +122,6 @@ fn draw_bandwidth_section(f: &mut Frame, snapshot: &NetworkSnapshot, area: Rect,
         draw_interfaces_table(f, snapshot, cols[0], no_color);
         draw_sparklines_panel(f, snapshot, cols[1], no_color);
     } else {
-        // Narrow screen: Stack interfaces and sparklines
         let rows = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
@@ -163,7 +163,7 @@ fn draw_interfaces_table(f: &mut Frame, snapshot: &NetworkSnapshot, area: Rect, 
         .take(max_rows)
         .map(|iface| {
             Row::new(vec![
-                Span::styled(iface.name.clone(), styled(Color::White, no_color)),
+                Span::styled(iface.name.as_str(), styled(Color::White, no_color)),
                 Span::styled(fmt_bytes(iface.rx_bps), styled(Color::Green, no_color)),
                 Span::styled(fmt_bytes(iface.tx_bps), styled(Color::Blue, no_color)),
                 Span::styled(
@@ -181,11 +181,11 @@ fn draw_interfaces_table(f: &mut Frame, snapshot: &NetworkSnapshot, area: Rect, 
     let table = Table::new(
         rows,
         [
-            Constraint::Length(12),
-            Constraint::Length(12),
-            Constraint::Length(12),
-            Constraint::Length(12),
-            Constraint::Length(12),
+            Constraint::Percentage(28),
+            Constraint::Percentage(18),
+            Constraint::Percentage(18),
+            Constraint::Percentage(18),
+            Constraint::Percentage(18),
         ],
     )
     .header(header)
@@ -205,7 +205,6 @@ fn draw_sparklines_panel(f: &mut Frame, snapshot: &NetworkSnapshot, area: Rect, 
         return;
     }
 
-    // Merge or pick primary active interface for sparklines
     let primary = snapshot
         .interfaces
         .iter()
@@ -224,8 +223,19 @@ fn draw_sparklines_panel(f: &mut Frame, snapshot: &NetworkSnapshot, area: Rect, 
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(inner);
 
-    let rx_data: Vec<u64> = primary.rx_history.iter().copied().collect();
-    let tx_data: Vec<u64> = primary.tx_history.iter().copied().collect();
+    let mut rx_buf = [0u64; 30];
+    let rx_len = primary.rx_history.len().min(30);
+    for (i, &val) in primary.rx_history.iter().take(rx_len).enumerate() {
+        rx_buf[i] = val;
+    }
+    let rx_data = &rx_buf[..rx_len];
+
+    let mut tx_buf = [0u64; 30];
+    let tx_len = primary.tx_history.len().min(30);
+    for (i, &val) in primary.tx_history.iter().take(tx_len).enumerate() {
+        tx_buf[i] = val;
+    }
+    let tx_data = &tx_buf[..tx_len];
 
     let rx_max = rx_data.iter().copied().max().unwrap_or(1).max(1);
     let tx_max = tx_data.iter().copied().max().unwrap_or(1).max(1);
@@ -233,22 +243,38 @@ fn draw_sparklines_panel(f: &mut Frame, snapshot: &NetworkSnapshot, area: Rect, 
     let rx_spark = Sparkline::default()
         .block(
             Block::default()
-                .title(format!(" RX: {} ({}) ", primary.name, fmt_bytes(primary.rx_bps)))
+                .title(format!(
+                    " RX: {} ({}) ",
+                    primary.name,
+                    fmt_bytes(primary.rx_bps)
+                ))
                 .border_style(styled(Color::DarkGray, no_color)),
         )
-        .data(&rx_data)
+        .data(rx_data)
         .max(rx_max)
-        .style(Style::default().fg(if no_color { Color::Reset } else { Color::Green }));
+        .style(Style::default().fg(if no_color {
+            Color::Reset
+        } else {
+            Color::Green
+        }));
 
     let tx_spark = Sparkline::default()
         .block(
             Block::default()
-                .title(format!(" TX: {} ({}) ", primary.name, fmt_bytes(primary.tx_bps)))
+                .title(format!(
+                    " TX: {} ({}) ",
+                    primary.name,
+                    fmt_bytes(primary.tx_bps)
+                ))
                 .border_style(styled(Color::DarkGray, no_color)),
         )
-        .data(&tx_data)
+        .data(tx_data)
         .max(tx_max)
-        .style(Style::default().fg(if no_color { Color::Reset } else { Color::Blue }));
+        .style(Style::default().fg(if no_color {
+            Color::Reset
+        } else {
+            Color::Blue
+        }));
 
     f.render_widget(rx_spark, rows[0]);
     f.render_widget(tx_spark, rows[1]);
@@ -295,30 +321,32 @@ fn draw_latency_card(f: &mut Frame, latency: &LatencyMetrics, area: Rect, no_col
 
     let rows = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(2), Constraint::Length(1), Constraint::Min(0)])
+        .constraints([
+            Constraint::Length(2),
+            Constraint::Length(1),
+            Constraint::Min(0),
+        ])
         .split(inner);
 
-    // Row 1: Targets with latency
     let probe_line = build_probe_line(latency, no_color);
     f.render_widget(Paragraph::new(probe_line), rows[0]);
 
-    // Row 2: Stats summary
     let stats_line = build_stats_line(&latency.stats, no_color);
     f.render_widget(Paragraph::new(stats_line), rows[1]);
 }
 
 fn build_probe_line(latency: &LatencyMetrics, no_color: bool) -> Line<'_> {
     if latency.probes.is_empty() {
-        return Line::from(Span::styled("Probing network targets...", styled(Color::DarkGray, no_color)));
+        return Line::from(Span::styled(
+            "Probing network targets...",
+            styled(Color::DarkGray, no_color),
+        ));
     }
 
     let mut spans = Vec::new();
     for probe in &latency.probes {
         let (icon, color) = if probe.success {
-            (
-                "●",
-                latency_color(probe.latency_ms, no_color),
-            )
+            ("●", latency_color(probe.latency_ms, no_color))
         } else {
             ("○", if no_color { Color::Reset } else { Color::Red })
         };
@@ -339,10 +367,7 @@ fn build_probe_line(latency: &LatencyMetrics, no_color: bool) -> Line<'_> {
                 styled(color, no_color),
             ));
         } else {
-            spans.push(Span::styled(
-                "loss ",
-                styled(Color::Red, no_color),
-            ));
+            spans.push(Span::styled("loss ", styled(Color::Red, no_color)));
         }
         spans.push(Span::styled(
             format!("[{}]  ", proto_tag),
@@ -368,18 +393,27 @@ fn build_stats_line(stats: &LatencyStats, no_color: bool) -> Line<'_> {
 
     Line::from(vec![
         Span::styled("min: ", styled(Color::DarkGray, no_color)),
-        Span::styled(format!("{:.1}ms ", stats.min_ms), latency_color(stats.min_ms, no_color)),
+        Span::styled(
+            format!("{:.1}ms ", stats.min_ms),
+            latency_color(stats.min_ms, no_color),
+        ),
         Span::styled("avg: ", styled(Color::DarkGray, no_color)),
         Span::styled(format!("{:.1}ms ", stats.avg_ms), avg_color),
         Span::styled("max: ", styled(Color::DarkGray, no_color)),
-        Span::styled(format!("{:.1}ms ", stats.max_ms), latency_color(stats.max_ms, no_color)),
+        Span::styled(
+            format!("{:.1}ms ", stats.max_ms),
+            latency_color(stats.max_ms, no_color),
+        ),
         Span::styled("loss: ", styled(Color::DarkGray, no_color)),
         Span::styled(format!("{:.0}%", stats.loss_pct), loss_color),
     ])
 }
 
 fn draw_dns_card(f: &mut Frame, dns: &DnsMetrics, area: Rect, no_color: bool) {
-    let title = format!(" DNS Latency Benchmark (avg: {:.1}ms) ", dns.avg_latency_ms);
+    let title = format!(
+        " DNS Latency Benchmark (avg: {:.1}ms) ",
+        dns.avg_latency_ms
+    );
     let block = Block::default()
         .title(title)
         .borders(Borders::ALL)
@@ -393,10 +427,7 @@ fn draw_dns_card(f: &mut Frame, dns: &DnsMetrics, area: Rect, no_color: bool) {
     }
 
     if dns.probes.is_empty() {
-        f.render_widget(
-            Paragraph::new("Benchmarking DNS resolution..."),
-            inner,
-        );
+        f.render_widget(Paragraph::new("Benchmarking DNS resolution..."), inner);
         return;
     }
 
@@ -405,10 +436,7 @@ fn draw_dns_card(f: &mut Frame, dns: &DnsMetrics, area: Rect, no_color: bool) {
 
     for probe in dns.probes.iter().take(max_lines) {
         let (icon, color) = if probe.success {
-            (
-                "●",
-                dns_latency_color(probe.latency_ms, no_color),
-            )
+            ("●", dns_latency_color(probe.latency_ms, no_color))
         } else {
             ("○", if no_color { Color::Reset } else { Color::Red })
         };
@@ -448,7 +476,10 @@ fn draw_dns_card(f: &mut Frame, dns: &DnsMetrics, area: Rect, no_color: bool) {
 
 fn draw_ports_section(f: &mut Frame, ports: &PortsMetrics, area: Rect, no_color: bool) {
     let block = Block::default()
-        .title(format!(" Open / Listening Ports ({}) ", ports.listening.len()))
+        .title(format!(
+            " Open / Listening Ports ({}) ",
+            ports.listening.len()
+        ))
         .borders(Borders::ALL)
         .border_style(styled(Color::DarkGray, no_color));
 
@@ -488,10 +519,10 @@ fn draw_ports_section(f: &mut Frame, ports: &PortsMetrics, area: Rect, no_color:
                 None => "-".into(),
             };
             Row::new(vec![
-                Span::styled(p.protocol.clone(), styled(Color::White, no_color)),
+                Span::styled(p.protocol.as_str(), styled(Color::White, no_color)),
                 Span::styled(p.port.to_string(), styled(port_color, no_color)),
                 Span::styled(pid_str, styled(Color::DarkGray, no_color)),
-                Span::styled(p.process_name.clone(), styled(Color::Gray, no_color)),
+                Span::styled(p.process_name.as_str(), styled(Color::Gray, no_color)),
             ])
         })
         .collect();
@@ -499,10 +530,10 @@ fn draw_ports_section(f: &mut Frame, ports: &PortsMetrics, area: Rect, no_color:
     let table = Table::new(
         rows,
         [
-            Constraint::Length(8),
-            Constraint::Length(10),
-            Constraint::Length(10),
-            Constraint::Min(12),
+            Constraint::Percentage(12),
+            Constraint::Percentage(14),
+            Constraint::Percentage(14),
+            Constraint::Min(20),
         ],
     )
     .header(header)
@@ -523,10 +554,7 @@ fn draw_footer(f: &mut Frame, area: Rect, no_color: bool) {
             styled(Color::Cyan, no_color).add_modifier(Modifier::BOLD),
         ),
         Span::styled(" exit  ", styled(Color::Gray, no_color)),
-        Span::styled(
-            "●",
-            styled(Color::Green, no_color),
-        ),
+        Span::styled("●", styled(Color::Green, no_color)),
         Span::styled(" pulse active", styled(Color::DarkGray, no_color)),
     ]);
 
@@ -571,7 +599,7 @@ fn dns_latency_color(ms: f64, no_color: bool) -> Color {
     }
 }
 
-fn fmt_bytes(bytes_per_sec: f64) -> String {
+pub fn fmt_bytes(bytes_per_sec: f64) -> String {
     if bytes_per_sec < 1024.0 {
         format!("{:.0} B/s", bytes_per_sec)
     } else if bytes_per_sec < 1024.0 * 1024.0 {
@@ -583,7 +611,7 @@ fn fmt_bytes(bytes_per_sec: f64) -> String {
     }
 }
 
-fn fmt_bytes_total(bytes: u64) -> String {
+pub fn fmt_bytes_total(bytes: u64) -> String {
     if bytes < 1024 {
         format!("{} B", bytes)
     } else if bytes < 1024 * 1024 {
@@ -601,6 +629,7 @@ mod tests {
 
     #[test]
     fn test_fmt_bytes() {
+        assert_eq!(fmt_bytes(0.0), "0 B/s");
         assert_eq!(fmt_bytes(512.0), "512 B/s");
         assert_eq!(fmt_bytes(1536.0), "1.5 KB/s");
         assert_eq!(fmt_bytes(1048576.0 * 2.5), "2.5 MB/s");
@@ -609,15 +638,20 @@ mod tests {
 
     #[test]
     fn test_fmt_bytes_total() {
+        assert_eq!(fmt_bytes_total(0), "0 B");
         assert_eq!(fmt_bytes_total(512), "512 B");
         assert_eq!(fmt_bytes_total(2048), "2.0 KB");
         assert_eq!(fmt_bytes_total(1048576 * 3), "3.0 MB");
+        assert_eq!(fmt_bytes_total(1073741824 * 5), "5.00 GB");
     }
 
     #[test]
     fn test_latency_colors() {
         assert_eq!(latency_color(20.0, false), Color::Green);
+        assert_eq!(latency_color(40.0, false), Color::Yellow);
         assert_eq!(latency_color(80.0, false), Color::Yellow);
+        assert_eq!(latency_color(120.0, false), Color::Yellow);
+        assert_eq!(latency_color(120.1, false), Color::Red);
         assert_eq!(latency_color(200.0, false), Color::Red);
         assert_eq!(latency_color(20.0, true), Color::Reset);
     }
@@ -625,9 +659,11 @@ mod tests {
     #[test]
     fn test_dns_latency_colors() {
         assert_eq!(dns_latency_color(15.0, false), Color::Green);
+        assert_eq!(dns_latency_color(25.0, false), Color::Yellow);
         assert_eq!(dns_latency_color(50.0, false), Color::Yellow);
+        assert_eq!(dns_latency_color(80.0, false), Color::Yellow);
+        assert_eq!(dns_latency_color(80.1, false), Color::Red);
         assert_eq!(dns_latency_color(120.0, false), Color::Red);
         assert_eq!(dns_latency_color(15.0, true), Color::Reset);
     }
 }
-

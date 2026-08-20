@@ -1,5 +1,7 @@
-use std::net::{IpAddr, TcpStream};
+use std::net::IpAddr;
 use std::time::{Duration, Instant};
+
+use tokio::sync::watch;
 
 use crate::app::{LatencyMetrics, LatencyStats, ProbeProtocol, ProbeResult};
 
@@ -15,11 +17,46 @@ async fn icmp_probe(addr: &str) -> Option<Duration> {
     Some(dur)
 }
 
-fn tcp_probe(addr: &str, port: u16) -> Option<Duration> {
+async fn tcp_probe_port(addr: &str, port: u16) -> Option<Duration> {
     let sock_addr: std::net::SocketAddr = format!("{}:{}", addr, port).parse().ok()?;
     let start = Instant::now();
-    TcpStream::connect_timeout(&sock_addr, Duration::from_secs(1)).ok()?;
-    Some(start.elapsed())
+    match tokio::time::timeout(
+        Duration::from_millis(1000),
+        tokio::net::TcpStream::connect(sock_addr),
+    )
+    .await
+    {
+        Ok(Ok(_stream)) => Some(start.elapsed()),
+        _ => None,
+    }
+}
+
+async fn tcp_probe_concurrent(addr: &str) -> Option<Duration> {
+    let probe_443 = tcp_probe_port(addr, 443);
+    let probe_53 = tcp_probe_port(addr, 53);
+    tokio::pin!(probe_443);
+    tokio::pin!(probe_53);
+
+    let mut p443_done = false;
+    let mut p53_done = false;
+
+    while !p443_done || !p53_done {
+        tokio::select! {
+            r = &mut probe_443, if !p443_done => {
+                p443_done = true;
+                if let Some(dur) = r {
+                    return Some(dur);
+                }
+            }
+            r = &mut probe_53, if !p53_done => {
+                p53_done = true;
+                if let Some(dur) = r {
+                    return Some(dur);
+                }
+            }
+        }
+    }
+    None
 }
 
 async fn probe_target(target: &ProbeTarget) -> ProbeResult {
@@ -32,15 +69,13 @@ async fn probe_target(target: &ProbeTarget) -> ProbeResult {
         };
     }
 
-    for port in [443, 53] {
-        if let Some(dur) = tcp_probe(&target.addr, port) {
-            return ProbeResult {
-                target: target.label.clone(),
-                protocol: ProbeProtocol::Tcp,
-                latency_ms: dur.as_secs_f64() * 1000.0,
-                success: true,
-            };
-        }
+    if let Some(dur) = tcp_probe_concurrent(&target.addr).await {
+        return ProbeResult {
+            target: target.label.clone(),
+            protocol: ProbeProtocol::Tcp,
+            latency_ms: dur.as_secs_f64() * 1000.0,
+            success: true,
+        };
     }
 
     ProbeResult {
@@ -51,7 +86,7 @@ async fn probe_target(target: &ProbeTarget) -> ProbeResult {
     }
 }
 
-fn compute_stats(results: &[ProbeResult]) -> LatencyStats {
+pub fn compute_stats(results: &[ProbeResult]) -> LatencyStats {
     let successes: Vec<f64> = results
         .iter()
         .filter(|r| r.success)
@@ -87,7 +122,7 @@ fn compute_stats(results: &[ProbeResult]) -> LatencyStats {
 }
 
 pub async fn run_latency_collector(
-    state: std::sync::Arc<std::sync::OnceLock<tokio::sync::watch::Sender<LatencyMetrics>>>,
+    tx: watch::Sender<LatencyMetrics>,
     gateway: Option<String>,
 ) {
     let mut targets = vec![
@@ -112,7 +147,7 @@ pub async fn run_latency_collector(
     let window = 10;
 
     loop {
-        let mut results = Vec::new();
+        let mut results = Vec::with_capacity(targets.len());
         for target in &targets {
             let result = probe_target(target).await;
             results.push(result);
@@ -131,12 +166,99 @@ pub async fn run_latency_collector(
             stats,
         };
 
-        if let Some(tx) = state.get() {
-            if tx.send(metrics).is_err() {
-                break;
-            }
+        if tx.send(metrics).is_err() {
+            break;
         }
 
         tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_compute_stats_empty() {
+        let stats = compute_stats(&[]);
+        assert_eq!(stats.min_ms, 0.0);
+        assert_eq!(stats.avg_ms, 0.0);
+        assert_eq!(stats.max_ms, 0.0);
+        assert_eq!(stats.loss_pct, 100.0);
+    }
+
+    #[test]
+    fn test_compute_stats_all_success() {
+        let probes = vec![
+            ProbeResult {
+                target: "1.1.1.1".into(),
+                protocol: ProbeProtocol::Icmp,
+                latency_ms: 10.0,
+                success: true,
+            },
+            ProbeResult {
+                target: "8.8.8.8".into(),
+                protocol: ProbeProtocol::Icmp,
+                latency_ms: 20.0,
+                success: true,
+            },
+            ProbeResult {
+                target: "gw".into(),
+                protocol: ProbeProtocol::Icmp,
+                latency_ms: 30.0,
+                success: true,
+            },
+        ];
+        let stats = compute_stats(&probes);
+        assert_eq!(stats.min_ms, 10.0);
+        assert_eq!(stats.avg_ms, 20.0);
+        assert_eq!(stats.max_ms, 30.0);
+        assert_eq!(stats.loss_pct, 0.0);
+    }
+
+    #[test]
+    fn test_compute_stats_mixed_loss() {
+        let probes = vec![
+            ProbeResult {
+                target: "1.1.1.1".into(),
+                protocol: ProbeProtocol::Icmp,
+                latency_ms: 15.0,
+                success: true,
+            },
+            ProbeResult {
+                target: "8.8.8.8".into(),
+                protocol: ProbeProtocol::Icmp,
+                latency_ms: 0.0,
+                success: false,
+            },
+        ];
+        let stats = compute_stats(&probes);
+        assert_eq!(stats.min_ms, 15.0);
+        assert_eq!(stats.avg_ms, 15.0);
+        assert_eq!(stats.max_ms, 15.0);
+        assert_eq!(stats.loss_pct, 50.0);
+    }
+
+    #[test]
+    fn test_compute_stats_all_failure() {
+        let probes = vec![
+            ProbeResult {
+                target: "1.1.1.1".into(),
+                protocol: ProbeProtocol::Icmp,
+                latency_ms: 0.0,
+                success: false,
+            },
+            ProbeResult {
+                target: "8.8.8.8".into(),
+                protocol: ProbeProtocol::Icmp,
+                latency_ms: 0.0,
+                success: false,
+            },
+        ];
+        let stats = compute_stats(&probes);
+        assert_eq!(stats.min_ms, 0.0);
+        assert_eq!(stats.avg_ms, 0.0);
+        assert_eq!(stats.max_ms, 0.0);
+        assert_eq!(stats.loss_pct, 100.0);
     }
 }
