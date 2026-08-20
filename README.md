@@ -1,21 +1,20 @@
 <div align="center">
 
-# ⚡ NetPulse
+# NetPulse
 
-**Ultra-lightweight, zero-flicker, non-blocking terminal network dashboard in Rust.**
+**A fast, lightweight network dashboard for the terminal. Built in Rust.**
 
 [![Crates.io](https://img.shields.io/crates/v/netpulse-tui.svg?style=flat-square&color=orange)](https://crates.io/crates/netpulse-tui)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg?style=flat-square)](LICENSE-MIT)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/unknownman/netpulse/ci.yml?branch=main&style=flat-square)](https://github.com/unknownman/netpulse/actions)
 [![Platform](https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20windows-lightgrey.svg?style=flat-square)](https://github.com/unknownman/netpulse)
-[![Zero-Privilege](https://img.shields.io/badge/security-zero--privilege-brightgreen.svg?style=flat-square)](https://github.com/unknownman/netpulse)
 
 <p align="center">
-  <a href="#key-features">Key Features</a> •
+  <a href="#features">Features</a> •
   <a href="#installation">Installation</a> •
-  <a href="#quick-start">Quick Start</a> •
+  <a href="#usage">Usage</a> •
   <a href="#keyboard-shortcuts">Shortcuts</a> •
-  <a href="#architecture">Architecture</a> •
+  <a href="#how-it-works">How It Works</a> •
   <a href="ROADMAP.md">Roadmap</a>
 </p>
 
@@ -23,57 +22,52 @@
 
 ---
 
-## 🚀 Why NetPulse?
+## Why NetPulse?
 
-Most terminal network tools force you into an unappealing trade-off: heavy background resource consumption, screen flicker during refresh, mandatory `sudo`/root privileges for basic ICMP pings, or complex configuration just to see why your connection feels sluggish.
+Most terminal network tools force you to pick your poison: bloated resource usage, flickering screens, the need for root privileges, or sluggish performance. NetPulse doesn't compromise.
 
-**NetPulse** is built from the ground up for systems engineers, SREs, and terminal power users:
-- **Zero Sudo Required**: Transparent ICMP ping with automated non-blocking TCP fallback (ports 443 & 53) ensures reliable latency diagnostics in locked-down or containerized environments.
-- **True Non-Blocking Async**: Powered by Tokio and Hickory DNS; network I/O, DNS benchmarks, port polling, and UI rendering execute independently with zero frame drops.
-- **Zero-Flicker Ratatui TUI**: 15 FPS sub-millisecond redraws with zero heap allocations on the render path.
-- **Minimal Footprint**: Single static binary (< 4MB stripped), instant startup, and near-zero CPU/memory footprint.
+It's designed for people who live in the terminal—systems engineers, SREs, and anyone who needs reliable network diagnostics without the hassle:
 
----
+- **No root required** — Uses non-blocking TCP fallback (ports 443 & 53) alongside ICMP to probe latency, even in locked-down environments
+- **Truly async** — Built on Tokio and Hickory DNS. Network I/O, DNS checks, port scanning, and rendering all run independently—no frame drops
+- **Zero flicker** — 15 FPS refresh rate with sub-millisecond redraws and zero heap allocations on the render path
+- **Lightweight** — A single binary under 4MB. Starts instantly, uses almost no CPU or memory
 
-## 📺 Preview
+## Features
+
+- **Real-time bandwidth monitor** — Watch RX/TX rates per interface with scrolling history sparklines
+- **Zero-privilege latency probing** — High-precision ICMP pings with automatic fallback to TCP handshakes when needed
+- **Parallel DNS resolution** — Benchmark your resolvers against real-world domains concurrently
+- **Port & socket auditor** — Scan listening TCP/UDP sockets and see which processes own them
+- **Responsive UI** — Works cleanly on tiny terminal splits or wide displays. Supports `NO_COLOR` mode
+- **Cross-platform** — Runs on Linux, macOS, and Windows with proper endian handling and platform-specific optimizations
+
+## Preview
 
 <div align="center">
   <img src="assets/demo.gif" alt="NetPulse Demo" width="850">
 </div>
 
----
+## Installation
 
-## ✨ Key Features
+### From Crates.io (recommended)
 
-| Feature | Description |
-|---|---|
-| 📊 **Real-Time Bandwidth & Sparklines** | Per-interface RX/TX rates computed accurately over exact time deltas, accompanied by adaptive 30-sample history sparklines. |
-| 🌐 **Zero-Privilege Latency Probing** | High-precision ICMP pings with seamless fallback to concurrent non-blocking TCP handshakes (raced across 443 & 53). |
-| ⚡ **Parallel DNS Resolution** | Concurrently benchmarks your upstream resolvers against top global domains using `futures::future::join_all`. |
-| 🔍 **Open Port & Socket Auditor** | Scans listening TCP/UDP sockets and maps them to active process names without spiking CPU or memory. |
-| 🎨 **Adaptive & Responsive UI** | Responsive Ratatui layout that scales cleanly from small terminal splits (40x10) to ultra-wide displays with `NO_COLOR` support. |
-| 🛡️ **Endian-Safe Route Detection** | Cross-platform gateway discovery supporting macOS routing tables and Linux `/proc/net/route` on both Little-Endian and Big-Endian architectures. |
-
----
-
-## 📦 Installation
-
-### Option 1: Via Cargo (from Crates.io)
-Installs the `netpulse` executable binary onto your PATH:
 ```bash
 cargo install netpulse-tui
 ```
 
-### Option 2: Via `cargo-binstall` (Fast Pre-built Binary)
+### Using cargo-binstall (pre-built binary)
+
 ```bash
 cargo binstall netpulse-tui
 ```
 
-### Option 3: Download Pre-built Binaries
-Download the pre-compiled binary for your platform from the [GitHub Releases](https://github.com/unknownman/netpulse/releases):
+### Download a pre-built binary
+
+Grab the latest release for your platform:
 
 ```bash
-# macOS (Apple Silicon / ARM64)
+# macOS (Apple Silicon)
 curl -LO https://github.com/unknownman/netpulse/releases/latest/download/netpulse-aarch64-apple-darwin.tar.gz
 tar -xzf netpulse-aarch64-apple-darwin.tar.gz
 sudo mv netpulse /usr/local/bin/
@@ -84,7 +78,8 @@ tar -xzf netpulse-x86_64-unknown-linux-musl.tar.gz
 sudo mv netpulse /usr/local/bin/
 ```
 
-### Option 4: Build from Source
+### Build from source
+
 ```bash
 git clone https://github.com/unknownman/netpulse.git
 cd netpulse
@@ -92,11 +87,9 @@ cargo build --release
 sudo cp target/release/netpulse /usr/local/bin/
 ```
 
----
+## Shell Completions
 
-## 🐚 Shell Completions
-
-Generate native auto-completion scripts for your shell using `--generate-completions`:
+Generate completions for your shell:
 
 ```bash
 # Zsh
@@ -110,90 +103,70 @@ netpulse --generate-completions bash > ~/.local/share/bash-completion/completion
 netpulse --generate-completions fish > ~/.config/fish/completions/netpulse.fish
 ```
 
----
-
-## 💻 Usage & CLI Flags
+## Usage
 
 ```bash
-# Launch with default settings (1s refresh, auto-detect active interfaces)
+# Launch with defaults (1 second refresh, auto-detect interfaces)
 netpulse
 
-# High-frequency refresh (250ms interval)
+# Refresh every 250ms for more responsive updates
 netpulse -i 250
 
-# Monitor a specific interface only (e.g. en0 or eth0)
+# Monitor a specific interface
 netpulse --interface en0
 
-# Show all interfaces including inactive / virtual loopbacks
+# Show all interfaces, including inactive ones
 netpulse --all
 
-# Plain monochrome output (or export NO_COLOR=1)
+# Monochrome output
 netpulse --no-color
 ```
 
-### CLI Reference
+### CLI Options
 
 | Flag | Short | Default | Description |
 |---|---|---|---|
-| `--interval <MS>` | `-i` | `1000` | Collector refresh interval in milliseconds |
-| `--interface <NAME>` | | `Auto` | Network interface to monitor |
-| `--all` | `-a` | `false` | Show all interfaces, including inactive ones |
-| `--no-color` | | `false` | Disable ANSI colored output |
-| `--generate-completions <SHELL>` | | | Output shell completion script (`bash`, `zsh`, `fish`, `powershell`, `elvish`) |
-| `--help` | `-h` | | Print help and options |
-| `--version` | `-V` | | Print version |
+| `--interval <MS>` | `-i` | `1000` | Refresh interval in milliseconds |
+| `--interface <NAME>` | | `Auto` | Which interface to monitor |
+| `--all` | `-a` | `false` | Show all interfaces |
+| `--no-color` | | `false` | Disable colored output |
+| `--generate-completions <SHELL>` | | | Generate shell completions |
+| `--help` | `-h` | | Show help |
+| `--version` | `-V` | | Show version |
 
----
-
-## ⌨️ Keyboard Shortcuts
+## Keyboard Shortcuts
 
 | Key | Action |
 |---|---|
-| <kbd>q</kbd> | Quit application and restore terminal |
-| <kbd>Esc</kbd> | Quit application and restore terminal |
-| <kbd>Ctrl</kbd> + <kbd>C</kbd> | Force exit safely |
+| <kbd>q</kbd> or <kbd>Esc</kbd> | Quit |
+| <kbd>Ctrl</kbd> + <kbd>C</kbd> | Force exit |
 
----
+## How It Works
 
-## 🏗️ Architecture & Zero-Privilege Security
+NetPulse runs three independent async tasks that communicate without locks:
 
-```text
-┌────────────────────────────────────────────────────────┐
-│                      main.rs                           │
-│  (15 FPS Ratatui Loop · Zero Heap Allocation / Render) │
-└──────▲─────────────────▲─────────────────▲─────────────┘
-       │                 │                 │
-┌──────┴──────────┐┌─────┴──────────┐┌─────┴─────────────┐
-│ Bandwidth Task  ││  Latency Task  ││    DNS Task       │
-│  (sysinfo-rs)   ││ (ICMP + TCP)   ││(Hickory Resolver) │
-└─────────────────┘└────────────────┘└───────────────────┘
-```
+1. **Bandwidth collector** — Reads interface statistics from the OS
+2. **Latency prober** — Sends ICMP or TCP probes and measures response times
+3. **DNS resolver** — Benchmarks your configured resolvers in parallel
 
-1. **Lock-Free Communication**: Each background collector asynchronously publishes immutable snapshots over `tokio::sync::watch` channels without shared `Mutex` locks or global statics.
-2. **True Async Network I/O**: Network probes utilize non-blocking async sockets bounded by deterministic timeouts, preventing unresponsive threads even on broken routing paths.
-3. **Safe Sub-millisecond Rendering**: Snapshot states are borrowed directly by reference during UI passes (`watch::Receiver::borrow()`), completely avoiding clone churn and garbage collection pauses.
-4. **Zero-Privilege Guarantee**: Uses OS routing sysctls and non-privileged raw ICMP/TCP handshake capabilities provided by modern Linux kernels (`net.ipv4.ping_group_range`) and macOS sockets.
+Each task publishes updates to the UI via lock-free channels. The main render loop borrows these snapshots directly—no cloning, no garbage collection pauses.
 
----
+The latency probing is particularly clever: it starts with ICMP (when available) but automatically falls back to TCP handshakes on ports 443 and 53 if you don't have the right permissions. This makes it work reliably in containerized environments and restricted networks.
 
-## 🤝 Contributing
+Network I/O uses true non-blocking sockets with deterministic timeouts, so a broken connection won't hang the UI. Everything runs at 15 FPS with virtually no memory overhead.
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+## Contributing
+
+Contributions welcome! Please submit a pull request.
 
 ```bash
-# Run test suite
+# Run tests
 cargo test -- --nocapture
 
-# Run linter
+# Run the linter
 cargo clippy --all-targets --all-features -- -D warnings
 ```
 
----
+## License
 
-## 📜 License
-
-This project is dual-licensed under either:
-- [MIT License](LICENSE-MIT)
-- [Apache License, Version 2.0](LICENSE-APACHE)
-
-at your option.
+Dual-licensed under MIT or Apache 2.0 at your option.
