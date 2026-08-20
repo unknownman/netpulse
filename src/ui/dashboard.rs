@@ -4,23 +4,25 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Row, Sparkline, Table};
 use ratatui::Frame;
 
-use crate::app::NetworkSnapshot;
+use crate::app::{LatencyMetrics, LatencyStats, NetworkSnapshot, ProbeProtocol};
 
-pub fn render(f: &mut Frame, snapshot: &NetworkSnapshot, no_color: bool) {
+pub fn render(f: &mut Frame, snapshot: &NetworkSnapshot, latency: &LatencyMetrics, no_color: bool) {
     let area = f.area();
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),
-            Constraint::Min(3),
-            Constraint::Length(1),
-            Constraint::Length(2),
+            Constraint::Length(3),  // header
+            Constraint::Min(3),    // interfaces table
+            Constraint::Length(6), // latency block
+            Constraint::Min(1),   // sparklines
+            Constraint::Length(2), // footer
         ])
         .split(area);
 
     draw_header(f, snapshot, chunks[0], no_color);
     draw_table(f, snapshot, chunks[1], no_color);
-    draw_footer(f, chunks[3], no_color);
+    draw_latency(f, latency, chunks[2], no_color);
+    draw_footer(f, chunks[4], no_color);
 }
 
 fn draw_header(f: &mut Frame, snapshot: &NetworkSnapshot, area: Rect, no_color: bool) {
@@ -36,7 +38,11 @@ fn draw_header(f: &mut Frame, snapshot: &NetworkSnapshot, area: Rect, no_color: 
     let line = Line::from(vec![
         Span::styled(" netpulse ", title_style),
         Span::styled(
-            format!("monitoring {} interface{}", count, if count == 1 { "" } else { "s" }),
+            format!(
+                "monitoring {} interface{}",
+                count,
+                if count == 1 { "" } else { "s" }
+            ),
             styled(Color::Gray, no_color),
         ),
     ]);
@@ -78,8 +84,14 @@ fn draw_table(f: &mut Frame, snapshot: &NetworkSnapshot, area: Rect, no_color: b
             Span::styled(iface.name.clone(), styled(Color::White, no_color)),
             Span::styled(fmt_bytes(iface.rx_bps), styled(Color::Green, no_color)),
             Span::styled(fmt_bytes(iface.tx_bps), styled(Color::Blue, no_color)),
-            Span::styled(fmt_bytes_total(iface.total_rx), styled(Color::DarkGray, no_color)),
-            Span::styled(fmt_bytes_total(iface.total_tx), styled(Color::DarkGray, no_color)),
+            Span::styled(
+                fmt_bytes_total(iface.total_rx),
+                styled(Color::DarkGray, no_color),
+            ),
+            Span::styled(
+                fmt_bytes_total(iface.total_tx),
+                styled(Color::DarkGray, no_color),
+            ),
         ]);
         rows.push(row);
     }
@@ -143,6 +155,141 @@ fn draw_table(f: &mut Frame, snapshot: &NetworkSnapshot, area: Rect, no_color: b
     }
 }
 
+fn draw_latency(f: &mut Frame, latency: &LatencyMetrics, area: Rect, no_color: bool) {
+    let inner_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(1), Constraint::Length(3), Constraint::Length(1)])
+        .split(area);
+
+    // Probe results row
+    let probe_line = build_probe_line(latency, no_color);
+    f.render_widget(ratatui::widgets::Paragraph::new(probe_line), inner_layout[0]);
+
+    // Stats block
+    let stats_block = build_stats_block(&latency.stats, no_color);
+    f.render_widget(stats_block, inner_layout[1]);
+
+    // Gateway info
+    let gw_line = build_gateway_line(latency, no_color);
+    f.render_widget(ratatui::widgets::Paragraph::new(gw_line), inner_layout[2]);
+}
+
+fn build_probe_line(latency: &LatencyMetrics, no_color: bool) -> Line<'_> {
+    let mut spans = vec![Span::styled(
+        "  ",
+        Style::default(),
+    )];
+
+    for probe in &latency.probes {
+        let (icon, color) = if probe.success {
+            let c = latency_color(probe.latency_ms, no_color);
+            ("●", c)
+        } else {
+            ("○", if no_color { Color::Reset } else { Color::Red })
+        };
+
+        let proto_tag = match probe.protocol {
+            ProbeProtocol::Icmp => "icmp",
+            ProbeProtocol::Tcp => "tcp",
+        };
+
+        spans.push(Span::styled(icon, Style::default().fg(color)));
+        spans.push(Span::styled(
+            format!(" {} ", probe.target),
+            styled(Color::White, no_color),
+        ));
+        if probe.success {
+            spans.push(Span::styled(
+                format!("{:.0}ms ", probe.latency_ms),
+                styled(Color::Gray, no_color),
+            ));
+        } else {
+            spans.push(Span::styled(
+                "timeout ",
+                styled(Color::Red, no_color),
+            ));
+        }
+        spans.push(Span::styled(
+            format!("[{}] ", proto_tag),
+            styled(Color::DarkGray, no_color),
+        ));
+    }
+
+    Line::from(spans)
+}
+
+fn build_stats_block(stats: &LatencyStats, no_color: bool) -> Line<'_> {
+    let loss_color = if no_color {
+        Color::Reset
+    } else if stats.loss_pct > 30.0 {
+        Color::Red
+    } else if stats.loss_pct > 10.0 {
+        Color::Yellow
+    } else {
+        Color::Green
+    };
+
+    let avg_color = latency_color(stats.avg_ms, no_color);
+
+    Line::from(vec![
+        Span::styled(
+            "    min ",
+            styled(Color::DarkGray, no_color),
+        ),
+        Span::styled(
+            format!("{:.1}ms", stats.min_ms),
+            latency_color(stats.min_ms, no_color),
+        ),
+        Span::styled(
+            "   avg ",
+            styled(Color::DarkGray, no_color),
+        ),
+        Span::styled(
+            format!("{:.1}ms", stats.avg_ms),
+            avg_color,
+        ),
+        Span::styled(
+            "   max ",
+            styled(Color::DarkGray, no_color),
+        ),
+        Span::styled(
+            format!("{:.1}ms", stats.max_ms),
+            latency_color(stats.max_ms, no_color),
+        ),
+        Span::styled(
+            "   loss ",
+            styled(Color::DarkGray, no_color),
+        ),
+        Span::styled(
+            format!("{:.0}%", stats.loss_pct),
+            loss_color,
+        ),
+    ])
+}
+
+fn build_gateway_line(latency: &LatencyMetrics, no_color: bool) -> Line<'_> {
+    match &latency.gateway {
+        Some(gw) => Line::from(vec![
+            Span::styled(
+                "  gw ",
+                styled(Color::DarkGray, no_color),
+            ),
+            Span::styled(
+                gw.clone(),
+                styled(Color::Cyan, no_color),
+            ),
+            Span::styled(
+                "  ",
+                Style::default(),
+            ),
+        ]),
+        None => Line::from(vec![Span::styled(
+            "  gw detected: none",
+            styled(Color::DarkGray, no_color),
+        )]),
+    }
+}
+
 fn draw_sparkline(
     f: &mut Frame,
     data: &[u64],
@@ -167,9 +314,15 @@ fn draw_sparkline(
 
 fn draw_footer(f: &mut Frame, area: Rect, no_color: bool) {
     let footer = Line::from(vec![
-        Span::styled(" q", styled(Color::Cyan, no_color).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            " q",
+            styled(Color::Cyan, no_color).add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" quit  ", styled(Color::Gray, no_color)),
-        Span::styled("ctrl+c", styled(Color::Cyan, no_color).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "ctrl+c",
+            styled(Color::Cyan, no_color).add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" exit", styled(Color::Gray, no_color)),
     ]);
 
@@ -185,6 +338,19 @@ fn styled(color: Color, no_color: bool) -> Style {
         Style::default()
     } else {
         Style::default().fg(color)
+    }
+}
+
+fn latency_color(ms: f64, no_color: bool) -> Color {
+    if no_color {
+        return Color::Reset;
+    }
+    if ms < 50.0 {
+        Color::Green
+    } else if ms <= 150.0 {
+        Color::Yellow
+    } else {
+        Color::Red
     }
 }
 

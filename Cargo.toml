@@ -11,6 +11,8 @@ ratatui = "0.28"
 crossterm = { version = "0.28", features = ["event-stream"] }
 clap = { version = "4", features = ["derive"] }
 sysinfo = "0.31"
+surge-ping = "0.8"
+socket2 = "0.5"
 anyhow = "1"
 
 [profile.release]

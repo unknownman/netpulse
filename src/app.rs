@@ -18,3 +18,32 @@ pub struct NetworkSnapshot {
     pub timestamp: Instant,
     pub interfaces: Vec<InterfaceMetrics>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProbeProtocol {
+    Icmp,
+    Tcp,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProbeResult {
+    pub target: String,
+    pub protocol: ProbeProtocol,
+    pub latency_ms: f64,
+    pub success: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct LatencyStats {
+    pub min_ms: f64,
+    pub avg_ms: f64,
+    pub max_ms: f64,
+    pub loss_pct: f64,
+}
+
+#[derive(Debug, Clone)]
+pub struct LatencyMetrics {
+    pub gateway: Option<String>,
+    pub probes: Vec<ProbeResult>,
+    pub stats: LatencyStats,
+}
