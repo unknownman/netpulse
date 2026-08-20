@@ -55,7 +55,7 @@ fn collect_listening_ports(sys: &mut System) -> Vec<ListeningPort> {
         });
     }
 
-    ports.sort_by(|a, b| a.port.cmp(&b.port));
+    ports.sort_by_key(|a| a.port);
     ports
 }
 
