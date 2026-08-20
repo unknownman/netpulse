@@ -23,7 +23,9 @@ pub fn render(
         let msg = vec![
             Line::from(Span::styled(
                 "Terminal window too small",
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
             )),
             Line::from(Span::styled(
                 format!("Current: {}x{} (Min: 40x10)", area.width, area.height),
@@ -252,11 +254,7 @@ fn draw_sparklines_panel(f: &mut Frame, snapshot: &NetworkSnapshot, area: Rect, 
         )
         .data(rx_data)
         .max(rx_max)
-        .style(Style::default().fg(if no_color {
-            Color::Reset
-        } else {
-            Color::Green
-        }));
+        .style(Style::default().fg(if no_color { Color::Reset } else { Color::Green }));
 
     let tx_spark = Sparkline::default()
         .block(
@@ -270,11 +268,7 @@ fn draw_sparklines_panel(f: &mut Frame, snapshot: &NetworkSnapshot, area: Rect, 
         )
         .data(tx_data)
         .max(tx_max)
-        .style(Style::default().fg(if no_color {
-            Color::Reset
-        } else {
-            Color::Blue
-        }));
+        .style(Style::default().fg(if no_color { Color::Reset } else { Color::Blue }));
 
     f.render_widget(rx_spark, rows[0]);
     f.render_widget(tx_spark, rows[1]);
@@ -410,10 +404,7 @@ fn build_stats_line(stats: &LatencyStats, no_color: bool) -> Line<'_> {
 }
 
 fn draw_dns_card(f: &mut Frame, dns: &DnsMetrics, area: Rect, no_color: bool) {
-    let title = format!(
-        " DNS Latency Benchmark (avg: {:.1}ms) ",
-        dns.avg_latency_ms
-    );
+    let title = format!(" DNS Latency Benchmark (avg: {:.1}ms) ", dns.avg_latency_ms);
     let block = Block::default()
         .title(title)
         .borders(Borders::ALL)
@@ -491,14 +482,12 @@ fn draw_ports_section(f: &mut Frame, ports: &PortsMetrics, area: Rect, no_color:
         return;
     }
 
-    let header_cells = ["Proto", "Port", "PID", "Process Name"]
-        .iter()
-        .map(|h| {
-            Span::styled(
-                *h,
-                styled(Color::Cyan, no_color).add_modifier(Modifier::BOLD),
-            )
-        });
+    let header_cells = ["Proto", "Port", "PID", "Process Name"].iter().map(|h| {
+        Span::styled(
+            *h,
+            styled(Color::Cyan, no_color).add_modifier(Modifier::BOLD),
+        )
+    });
     let header = Row::new(header_cells).height(1);
 
     let max_rows = area.height.saturating_sub(2) as usize;

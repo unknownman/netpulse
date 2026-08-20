@@ -51,7 +51,8 @@ mod tests {
 
     #[test]
     fn test_cli_custom_interval_and_interface() {
-        let cli = Cli::try_parse_from(["netpulse", "-i", "250", "--interface", "en0", "--all"]).unwrap();
+        let cli =
+            Cli::try_parse_from(["netpulse", "-i", "250", "--interface", "en0", "--all"]).unwrap();
         assert_eq!(cli.interval, 250);
         assert_eq!(cli.interface, Some("en0".into()));
         assert!(cli.all);
@@ -75,7 +76,10 @@ mod tests {
         assert_eq!(cli.generate_completions, Some(clap_complete::Shell::Zsh));
 
         let cli_bash = Cli::try_parse_from(["netpulse", "--generate-completions", "bash"]).unwrap();
-        assert_eq!(cli_bash.generate_completions, Some(clap_complete::Shell::Bash));
+        assert_eq!(
+            cli_bash.generate_completions,
+            Some(clap_complete::Shell::Bash)
+        );
     }
 
     #[test]

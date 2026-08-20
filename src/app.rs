@@ -81,4 +81,3 @@ pub struct DnsMetrics {
     #[allow(dead_code)]
     pub collected_at: std::time::Instant,
 }
-

@@ -94,12 +94,14 @@ mod tests {
     #[test]
     fn test_parse_proc_route_content() {
         #[cfg(target_endian = "little")]
-        let route_data = "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT\n\
+        let route_data =
+            "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT\n\
                           eth0\t00000000\t0101A8C0\t0003\t0\t0\t100\t00000000\t0\t0\t0\n\
                           eth0\t0001A8C0\t00000000\t0001\t0\t0\t100\t00FFFFFF\t0\t0\t0\n";
 
         #[cfg(target_endian = "big")]
-        let route_data = "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT\n\
+        let route_data =
+            "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT\n\
                           eth0\t00000000\tC0A80101\t0003\t0\t0\t100\t00000000\t0\t0\t0\n\
                           eth0\tC0A80100\t00000000\t0001\t0\t0\t100\tFFFFFF00\t0\t0\t0\n";
 

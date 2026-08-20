@@ -150,12 +150,30 @@ mod tests {
     #[test]
     fn test_should_include_interface_filter() {
         // Matching target
-        assert!(should_include_interface("en0", Some("en0"), false, 100, 100));
+        assert!(should_include_interface(
+            "en0",
+            Some("en0"),
+            false,
+            100,
+            100
+        ));
         assert!(should_include_interface("en0", Some("en0"), true, 0, 0));
 
         // Non-matching target
-        assert!(!should_include_interface("en1", Some("en0"), true, 100, 100));
-        assert!(!should_include_interface("lo0", Some("en0"), false, 100, 100));
+        assert!(!should_include_interface(
+            "en1",
+            Some("en0"),
+            true,
+            100,
+            100
+        ));
+        assert!(!should_include_interface(
+            "lo0",
+            Some("en0"),
+            false,
+            100,
+            100
+        ));
 
         // No target specified
         assert!(should_include_interface("en0", None, false, 10, 0));

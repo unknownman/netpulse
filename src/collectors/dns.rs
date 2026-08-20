@@ -27,10 +27,8 @@ pub async fn run_dns_collector(tx: watch::Sender<DnsMetrics>) {
             (res, ns_str)
         }
         Err(_) => {
-            let res = TokioAsyncResolver::tokio(
-                ResolverConfig::cloudflare(),
-                ResolverOpts::default(),
-            );
+            let res =
+                TokioAsyncResolver::tokio(ResolverConfig::cloudflare(), ResolverOpts::default());
             (res, Some("1.1.1.1 (fallback)".into()))
         }
     };
@@ -41,7 +39,9 @@ pub async fn run_dns_collector(tx: watch::Sender<DnsMetrics>) {
             let res_clone = resolver.clone();
             probe_futs.push(async move {
                 let start = Instant::now();
-                match tokio::time::timeout(Duration::from_secs(2), res_clone.lookup_ip(domain)).await {
+                match tokio::time::timeout(Duration::from_secs(2), res_clone.lookup_ip(domain))
+                    .await
+                {
                     Ok(Ok(response)) => {
                         let latency_ms = start.elapsed().as_secs_f64() * 1000.0;
                         let first_ip = response.iter().next().map(|ip| ip.to_string());

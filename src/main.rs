@@ -131,22 +131,17 @@ async fn run_app(
             let latency = lat_rx.borrow_and_update();
             let dns = dns_rx.borrow_and_update();
             let ports = ports_rx.borrow_and_update();
-            terminal.draw(|f| {
-                ui::dashboard::render(f, &snap, &latency, &dns, &ports, cli.no_color)
-            })?;
+            terminal
+                .draw(|f| ui::dashboard::render(f, &snap, &latency, &dns, &ports, cli.no_color))?;
         }
 
         if event::poll(tick_rate)? {
             match event::read()? {
-                Event::Key(key) if key.kind == KeyEventKind::Press => {
-                    match key.code {
-                        KeyCode::Char('q') | KeyCode::Esc => break,
-                        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                            break
-                        }
-                        _ => {}
-                    }
-                }
+                Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
+                    KeyCode::Char('q') | KeyCode::Esc => break,
+                    KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => break,
+                    _ => {}
+                },
                 Event::Resize(..) => {
                     // Force terminal re-draw cleanly on resize
                     terminal.autoresize()?;

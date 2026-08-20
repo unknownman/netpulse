@@ -123,10 +123,7 @@ pub fn compute_stats(results: &[ProbeResult]) -> LatencyStats {
     }
 }
 
-pub async fn run_latency_collector(
-    tx: watch::Sender<LatencyMetrics>,
-    gateway: Option<String>,
-) {
+pub async fn run_latency_collector(tx: watch::Sender<LatencyMetrics>, gateway: Option<String>) {
     let mut targets = vec![
         ProbeTarget {
             addr: "1.1.1.1".into(),
