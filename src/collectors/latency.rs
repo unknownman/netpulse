@@ -1,6 +1,7 @@
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::time::{Duration, Instant};
 
+use futures::future::join_all;
 use tokio::sync::watch;
 
 use crate::app::{LatencyMetrics, LatencyStats, ProbeProtocol, ProbeResult};
@@ -18,7 +19,8 @@ async fn icmp_probe(addr: &str) -> Option<Duration> {
 }
 
 async fn tcp_probe_port(addr: &str, port: u16) -> Option<Duration> {
-    let sock_addr: std::net::SocketAddr = format!("{}:{}", addr, port).parse().ok()?;
+    let ip: IpAddr = addr.parse().ok()?;
+    let sock_addr = SocketAddr::new(ip, port);
     let start = Instant::now();
     match tokio::time::timeout(
         Duration::from_millis(1000),
@@ -147,11 +149,8 @@ pub async fn run_latency_collector(
     let window = 10;
 
     loop {
-        let mut results = Vec::with_capacity(targets.len());
-        for target in &targets {
-            let result = probe_target(target).await;
-            results.push(result);
-        }
+        let probe_futs = targets.iter().map(probe_target);
+        let results = join_all(probe_futs).await;
 
         history.extend(results.iter().cloned());
         if history.len() > window {

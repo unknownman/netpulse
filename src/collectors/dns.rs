@@ -1,5 +1,6 @@
 use std::time::{Duration, Instant};
 
+use futures::future::join_all;
 use hickory_resolver::config::{ResolverConfig, ResolverOpts};
 use hickory_resolver::system_conf::read_system_conf;
 use hickory_resolver::TokioAsyncResolver;
@@ -35,7 +36,7 @@ pub async fn run_dns_collector(tx: watch::Sender<DnsMetrics>) {
     };
 
     loop {
-        let mut probe_futs = Vec::new();
+        let mut probe_futs = Vec::with_capacity(BENCHMARK_DOMAINS.len());
         for &domain in BENCHMARK_DOMAINS {
             let res_clone = resolver.clone();
             probe_futs.push(async move {
@@ -70,11 +71,7 @@ pub async fn run_dns_collector(tx: watch::Sender<DnsMetrics>) {
             });
         }
 
-        let mut results = Vec::with_capacity(BENCHMARK_DOMAINS.len());
-        for fut in probe_futs {
-            results.push(fut.await);
-        }
-
+        let results = join_all(probe_futs).await;
         let avg_latency_ms = compute_dns_avg(&results);
 
         let metrics = DnsMetrics {

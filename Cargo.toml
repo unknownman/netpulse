@@ -7,6 +7,7 @@ license = "MIT"
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
+futures = "0.3"
 ratatui = "0.28"
 crossterm = { version = "0.28", features = ["event-stream"] }
 clap = { version = "4", features = ["derive"] }

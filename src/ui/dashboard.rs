@@ -545,7 +545,7 @@ fn draw_ports_section(f: &mut Frame, ports: &PortsMetrics, area: Rect, no_color:
 fn draw_footer(f: &mut Frame, area: Rect, no_color: bool) {
     let footer = Line::from(vec![
         Span::styled(
-            " q",
+            " q / esc",
             styled(Color::Cyan, no_color).add_modifier(Modifier::BOLD),
         ),
         Span::styled(" quit  ", styled(Color::Gray, no_color)),

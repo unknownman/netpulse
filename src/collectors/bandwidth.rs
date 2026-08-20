@@ -15,6 +15,26 @@ pub fn calculate_bps(delta_bytes: u64, elapsed_secs: f64) -> f64 {
     }
 }
 
+pub fn should_include_interface(
+    name: &str,
+    target_interface: Option<&str>,
+    all: bool,
+    delta_rx: u64,
+    delta_tx: u64,
+) -> bool {
+    if let Some(target) = target_interface {
+        if name != target {
+            return false;
+        }
+    }
+
+    if !all && delta_rx == 0 && delta_tx == 0 {
+        return false;
+    }
+
+    true
+}
+
 pub async fn run_bandwidth_collector(tx: watch::Sender<NetworkSnapshot>, cli: Cli) {
     let mut networks = Networks::new_with_refreshed_list();
     let mut prev_totals: HashMap<String, (u64, u64)> = HashMap::new();
@@ -48,7 +68,15 @@ pub async fn run_bandwidth_collector(tx: watch::Sender<NetworkSnapshot>, cli: Cl
                 }
             };
 
-            if !cli.all && delta_rx == 0 && delta_tx == 0 {
+            let include = should_include_interface(
+                name,
+                cli.interface.as_deref(),
+                cli.all,
+                delta_rx,
+                delta_tx,
+            );
+
+            if !include {
                 prev_totals.insert(name.clone(), (rx, tx_bytes));
                 continue;
             }
@@ -117,5 +145,22 @@ mod tests {
     #[test]
     fn test_calculate_bps_zero_delta() {
         assert_eq!(calculate_bps(0, 1.0), 0.0);
+    }
+
+    #[test]
+    fn test_should_include_interface_filter() {
+        // Matching target
+        assert!(should_include_interface("en0", Some("en0"), false, 100, 100));
+        assert!(should_include_interface("en0", Some("en0"), true, 0, 0));
+
+        // Non-matching target
+        assert!(!should_include_interface("en1", Some("en0"), true, 100, 100));
+        assert!(!should_include_interface("lo0", Some("en0"), false, 100, 100));
+
+        // No target specified
+        assert!(should_include_interface("en0", None, false, 10, 0));
+        assert!(should_include_interface("en0", None, false, 0, 10));
+        assert!(!should_include_interface("en0", None, false, 0, 0));
+        assert!(should_include_interface("en0", None, true, 0, 0));
     }
 }
