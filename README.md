@@ -37,31 +37,15 @@ Most terminal network tools force you into an unappealing trade-off: heavy backg
 
 ## 📺 Preview
 
-```text
-┌───────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ NETPULSE  ● 3 ifaces | gw: 192.168.1.1 | dns: 1.1.1.1 | status: active                                    │
-└───────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-┌ Network Interfaces ──────────────────────────────────────┐┌ Throughput History ───────────────────────────┐
-│Interface    RX Rate     TX Rate    Total RX    Total TX  ││ RX: en0 (14.2 MB/s)                           │
-│en0          14.2 MB/s   1.8 MB/s   8.42 GB     2.15 GB   ││    █▅▁▂ ▂ ▄▄▁▅                                │
-│utun3        820 KB/s    110 KB/s   412.0 MB    98.4 MB   ││▂▅▄█████▃█▆█████                               │
-│lo0          0 B/s       0 B/s      185.9 MB    185.9 MB  ││ TX: en0 (1.8 MB/s)                            │
-│                                                          ││    ▁          █                               │
-└──────────────────────────────────────────────────────────┘└───────────────────────────────────────────────┘
-┌ Ping & Latency Probes ──────────────────────────────┐┌ DNS Latency Benchmark (avg: 12.4ms) ───────────────┐
-│● 1.1.1.1 11ms [icmp]  ● 8.8.8.8 14ms [icmp]         ││● google.com       8.2ms (142.250.190.46)          │
-│● gw:192.168.1.1 1ms [icmp]                          ││● cloudflare.com  11.4ms (104.16.132.229)          │
-│min: 1.0ms avg: 8.7ms max: 14.0ms loss: 0%           ││● github.com      17.6ms (140.82.121.4)            │
-└─────────────────────────────────────────────────────┘└────────────────────────────────────────────────────┘
-┌ Open / Listening Ports (4) ───────────────────────────────────────────────────────────────────────────────┐
-│Proto       Port        PID         Process Name                                                           │
-│TCP         22          1420        sshd                                                                   │
-│TCP         5432        2811        postgres                                                               │
-│TCP         8080        4190        node (backend-api)                                                     │
-│UDP         5353        312         mDNSResponder                                                          │
-└───────────────────────────────────────────────────────────────────────────────────────────────────────────┘
- q / esc quit  ctrl+c exit  ● pulse active
-```
+<div align="center">
+  <img src="assets/demo.gif" alt="NetPulse Demo" width="850">
+</div>
+
+> **Re-generate the GIF locally:**
+> 1. Install [VHS](https://github.com/charmbracelet/vhs) — `brew install vhs`
+> 2. Install the Nerd Font — `brew install --cask font-jetbrains-mono-nerd-font`
+> 3. Pre-build the release binary — `cargo build --release`
+> 4. Record — `vhs assets/demo.tape`
 
 ---
 
