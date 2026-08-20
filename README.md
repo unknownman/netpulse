@@ -4,8 +4,8 @@
 
 **Ultra-lightweight, zero-flicker, non-blocking terminal network dashboard in Rust.**
 
-[![Crates.io](https://img.shields.io/crates/v/netpulse.svg?style=flat-square&color=orange)](https://crates.io/crates/netpulse)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+[![Crates.io](https://img.shields.io/crates/v/netpulse-tui.svg?style=flat-square&color=orange)](https://crates.io/crates/netpulse-tui)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg?style=flat-square)](LICENSE-MIT)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/unknownman/netpulse/ci.yml?branch=main&style=flat-square)](https://github.com/unknownman/netpulse/actions)
 [![Platform](https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20windows-lightgrey.svg?style=flat-square)](https://github.com/unknownman/netpulse)
 [![Zero-Privilege](https://img.shields.io/badge/security-zero--privilege-brightgreen.svg?style=flat-square)](https://github.com/unknownman/netpulse)
@@ -81,13 +81,14 @@ Most terminal network tools force you into an unappealing trade-off: heavy backg
 ## 📦 Installation
 
 ### Option 1: Via Cargo (from Crates.io)
+Installs the `netpulse` executable binary onto your PATH:
 ```bash
-cargo install netpulse
+cargo install netpulse-tui
 ```
 
 ### Option 2: Via `cargo-binstall` (Fast Pre-built Binary)
 ```bash
-cargo binstall netpulse
+cargo binstall netpulse-tui
 ```
 
 ### Option 3: Download Pre-built Binaries
@@ -213,4 +214,8 @@ cargo clippy --all-targets --all-features -- -D warnings
 
 ## 📜 License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is dual-licensed under either:
+- [MIT License](LICENSE-MIT)
+- [Apache License, Version 2.0](LICENSE-APACHE)
+
+at your option.

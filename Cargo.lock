@@ -899,7 +899,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "netpulse"
+name = "netpulse-tui"
 version = "0.1.0"
 dependencies = [
  "anyhow",

@@ -1,9 +1,20 @@
 [package]
-name = "netpulse"
+name = "netpulse-tui"
 version = "0.1.0"
 edition = "2021"
-description = "Ultra-lightweight, zero-flicker, terminal-based local network pulse tool"
-license = "MIT"
+authors = ["Ali Joder <alijoder@gmail.com>"]
+description = "Ultra-lightweight, zero-flicker, non-blocking terminal network dashboard in Rust"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/unknownman/netpulse"
+homepage = "https://github.com/unknownman/netpulse"
+documentation = "https://docs.rs/netpulse-tui"
+keywords = ["network", "tui", "monitoring", "bandwidth", "latency"]
+categories = ["command-line-utilities", "network-programming"]
+
+[[bin]]
+name = "netpulse"
+path = "src/main.rs"
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
@@ -22,4 +33,6 @@ anyhow = "1"
 [profile.release]
 opt-level = 3
 lto = true
+codegen-units = 1
+panic = "abort"
 strip = true
